@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudoku Solver - Minimal & Fancy</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0F172A',
+                        darkCard: '#1E293B',
+                        darkCellEven: '#1E293B',
+                        darkCellOdd: '#334155',
+                        lightBg: '#F8FAFC',
+                        lightCard: '#FFFFFF',
+                        lightCellEven: '#F1F5F9',
+                        lightCellOdd: '#E2E8F0',
+                        accentGreen: '#10B981',
+                        accentBlue: '#3B82F6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Hide spin buttons for input number */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Thick border borders for 3x3 Sudoku blocks */
+        .sudoku-cell {
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+        }
+
+        .border-r-block {
+            border-right: 3px solid #64748B !important;
+        }
+        .border-b-block {
+            border-bottom: 3px solid #64748B !important;
+        }
+
+        .dark .border-r-block {
+            border-right: 3px solid #94A3B8 !important;
+        }
+        .dark .border-b-block {
+            border-bottom: 3px solid #94A3B8 !important;
+        }
+
+        /* Smooth pulse animation for Toast messages */
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-20px) translateX(-50%); }
+            15% { opacity: 1; transform: translateY(0) translateX(-50%); }
+            85% { opacity: 1; transform: translateY(0) translateX(-50%); }
+            100% { opacity: 0; transform: translateY(-20px) translateX(-50%); }
+        }
+        .toast-animate {
+            animation: fadeInOut 3.5s forwards;
+        }
+    </style>
+</head>
+<body class="bg-lightBg text-slate-800 dark:bg-darkBg dark:text-slate-100 min-h-screen flex flex-col justify-between items-center p-4">
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="fixed top-6 left-1/2 transform -translate-x-1/2 hidden z-50 px-6 py-3 rounded-xl shadow-2xl font-medium text-sm flex items-center gap-3 border backdrop-blur-md">
+        <i id="toast-icon" class="fa-solid"></i>
+        <span id="toast-message">Notification</span>
+    </div>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-lg mx-auto flex flex-col items-center gap-6 my-auto">
+        
+        <!-- Header Section -->
+        <header class="w-full flex justify-between items-center px-2">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-500 to-emerald-500 bg-clip-text text-transparent">
+                    SUDOKU SOLVER
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+                    Isi angka awal Sudoku, lalu klik 'Solve'!
+                </p>
+            </div>
+
+            <!-- Dark/Light Theme Toggle -->
+            <button id="theme-toggle" class="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center justify-center transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <i id="theme-icon" class="fa-solid fa-moon text-slate-700 dark:text-amber-400 text-lg"></i>
+            </button>
+        </header>
+
+        <!-- Sudoku Board Frame -->
+        <div class="relative w-full bg-lightCard dark:bg-darkCard p-3 sm:p-5 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 transition-all">
+            
+            <div id="grid-container" class="grid grid-cols-9 gap-[2px] bg-slate-300 dark:bg-slate-700 p-[2px] rounded-xl overflow-hidden shadow-inner">
+                <!-- 81 Inputs will be dynamically generated by JS -->
+            </div>
+
+        </div>
+
+        <!-- Controls Section -->
+        <div class="w-full flex flex-col gap-3">
+            
+            <!-- Main Action Buttons -->
+            <div class="grid grid-cols-2 gap-3">
+                <button id="solve-btn" class="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">
+                    <i class="fa-solid fa-play"></i> Solve
+                </button>
+                
+                <button id="reset-btn" class="flex items-center justify-center gap-2 py-3 px-4 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all">
+                    <i class="fa-solid fa-rotate-left"></i> Reset Board
+                </button>
+            </div>
+
+            <!-- Preset / Sample Controls -->
+            <div class="grid grid-cols-3 gap-2">
+                <button onclick="loadSamplePreset('easy')" class="py-2 text-xs font-semibold rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all">
+                    Sample: Easy
+                </button>
+                <button onclick="loadSamplePreset('medium')" class="py-2 text-xs font-semibold rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all">
+                    Sample: Medium
+                </button>
+                <button onclick="loadSamplePreset('hard')" class="py-2 text-xs font-semibold rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all">
+                    Sample: Hard
+                </button>
+            </div>
+            
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
+        Sudoku Backtracking Solver &bull; Single-File HTML Web App
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Matrix to hold 9x9 input elements
+        const entries = Array.from({ length: 9 }, () => Array(9).fill(null));
+
+        // Sample Presets for quick testing
+        const presets = {
+            easy: [
+                [5, 3, 0, 0, 7, 0, 0, 0, 0],
+                [6, 0, 0, 1, 9, 5, 0, 0, 0],
+                [0, 9, 8, 0, 0, 0, 0, 6, 0],
+                [8, 0, 0, 0, 6, 0, 0, 0, 3],
+                [4, 0, 0, 8, 0, 3, 0, 0, 1],
+                [7, 0, 0, 0, 2, 0, 0, 0, 6],
+                [0, 6, 0, 0, 0, 0, 2, 8, 0],
+                [0, 0, 0, 4, 1, 9, 0, 0, 5],
+                [0, 0, 0, 0, 8, 0, 0, 7, 9]
+            ],
+            medium: [
+                [0, 0, 0, 2, 6, 0, 7, 0, 1],
+                [6, 8, 0, 0, 7, 0, 0, 9, 0],
+                [1, 9, 0, 0, 0, 4, 5, 0, 0],
+                [8, 2, 0, 1, 0, 0, 0, 4, 0],
+                [0, 0, 4, 6, 0, 2, 9, 0, 0],
+                [0, 5, 0, 0, 0, 3, 0, 2, 8],
+                [0, 0, 9, 3, 0, 0, 0, 7, 4],
+                [0, 4, 0, 0, 5, 0, 0, 3, 6],
+                [7, 0, 3, 0, 1, 8, 0, 0, 0]
+            ],
+            hard: [
+                [0, 2, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 6, 0, 0, 0, 0, 3],
+                [0, 7, 4, 0, 8, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 3, 0, 0, 2],
+                [0, 8, 0, 0, 4, 0, 0, 1, 0],
+                [6, 0, 0, 5, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 1, 0, 7, 8, 0],
+                [5, 0, 0, 0, 0, 9, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 4, 0]
+            ]
+        };
+
+        // Initialize UI Grid & Setup Events
+        window.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            createGrid();
+
+            document.getElementById('solve-btn').addEventListener('click', solveSudoku);
+            document.getElementById('reset-btn').addEventListener('click', resetBoard);
+            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+        });
+
+        // Build 9x9 Input Grid dynamically
+        function createGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '';
+
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const blockRow = Math.floor(row / 3);
+                    const blockCol = Math.floor(col / 3);
+                    const isEvenBlock = (blockRow + blockCol) % 2 === 0;
+
+                    // Create Cell Input Element
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.maxLength = 1;
+                    input.dataset.row = row;
+                    input.dataset.col = col;
+
+                    // Base classes for cell design & grid lines
+                    let cellClasses = [
+                        'sudoku-cell', 'w-full', 'aspect-square', 'text-center',
+                        'font-bold', 'text-lg', 'sm:text-xl', 'outline-none',
+                        'focus:ring-2', 'focus:ring-blue-500', 'focus:z-10'
+                    ];
+
+                    // 3x3 Block styling (Alternating backgrounds)
+                    if (isEvenBlock) {
+                        cellClasses.push('bg-lightCellEven', 'dark:bg-darkCellEven');
+                    } else {
+                        cellClasses.push('bg-lightCellOdd', 'dark:bg-darkCellOdd');
+                    }
+
+                    // Thick lines separating 3x3 blocks
+                    if (col === 2 || col === 5) cellClasses.push('border-r-block');
+                    if (row === 2 || row === 5) cellClasses.push('border-b-block');
+
+                    input.className = cellClasses.join(' ');
+                    input.classList.add('text-slate-900', 'dark:text-white');
+
+                    // Keyboard input & Navigation handling
+                    input.addEventListener('input', (e) => handleInput(e, row, col));
+                    input.addEventListener('keydown', (e) => handleKeyDown(e, row, col));
+
+                    entries[row][col] = input;
+                    container.appendChild(input);
+                }
+            }
+        }
+
+        // Handle text entry validation (Digits 1-9 only)
+        function handleInput(e, row, col) {
+            const val = e.target.value;
+
+            // Restrict input to digits 1 to 9
+            if (!/^[1-9]$/.test(val)) {
+                e.target.value = '';
+                return;
+            }
+
+            // Move focus automatically to next cell
+            moveFocus(row, col, 'next');
+        }
+
+        // Handle Arrow key navigation & Backspace
+        function handleKeyDown(e, row, col) {
+            switch (e.key) {
+                case 'ArrowRight':
+                    moveFocus(row, col, 'right');
+                    break;
+                case 'ArrowLeft':
+                    moveFocus(row, col, 'left');
+                    break;
+                case 'ArrowDown':
+                    moveFocus(row, col, 'down');
+                    break;
+                case 'ArrowUp':
+                    moveFocus(row, col, 'up');
+                    break;
+                case 'Backspace':
+                    if (e.target.value === '') {
+                        moveFocus(row, col, 'left');
+                    }
+                    break;
+            }
+        }
+
+        // Navigation Helper
+        function moveFocus(row, col, direction) {
+            let nextRow = row;
+            let nextCol = col;
+
+            if (direction === 'right' || direction === 'next') {
+                nextCol++;
+                if (nextCol > 8) {
+                    nextCol = 0;
+                    nextRow++;
+                }
+            } else if (direction === 'left') {
+                nextCol--;
+                if (nextCol < 0) {
+                    nextCol = 8;
+                    nextRow--;
+                }
+            } else if (direction === 'down') {
+                nextRow++;
+            } else if (direction === 'up') {
+                nextRow--;
+            }
+
+            if (nextRow >= 0 && nextRow < 9 && nextCol >= 0 && nextCol < 9) {
+                entries[nextRow][nextCol].focus();
+                entries[nextRow][nextCol].select();
+            }
+        }
+
+        // Extract Board Data from GUI
+        function getBoardData() {
+            const board = [];
+            for (let r = 0; r < 9; r++) {
+                const rowData = [];
+                for (let c = 0; c < 9; c++) {
+                    const val = entries[r][c].value.trim();
+                    if (val === "") {
+                        rowData.push(0);
+                    } else if (/^[1-9]$/.test(val)) {
+                        rowData.push(parseInt(val, 10));
+                    } else {
+                        return null; // Invalid entry detected
+                    }
+                }
+                board.push(rowData);
+            }
+            return board;
+        }
+
+        // Check placement validity
+        function isValid(board, row, col, num) {
+            // Row check
+            for (let c = 0; c < 9; c++) {
+                if (board[row][c] === num && c !== col) return false;
+            }
+            // Column check
+            for (let r = 0; r < 9; r++) {
+                if (board[r][col] === num && r !== row) return false;
+            }
+            // 3x3 Block check
+            const startRow = Math.floor(row / 3) * 3;
+            const startCol = Math.floor(col / 3) * 3;
+            for (let r = startRow; r < startRow + 3; r++) {
+                for (let c = startCol; c < startCol + 3; c++) {
+                    if (board[r][c] === num && (r !== row || c !== col)) return false;
+                }
+            }
+            return true;
+        }
+
+        // Validate initial user setup
+        function validateInitialBoard(board) {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (board[r][c] !== 0) {
+                        const num = board[r][c];
+                        board[r][c] = 0;
+                        if (!isValid(board, r, c, num)) {
+                            return false;
+                        }
+                        board[r][c] = num;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Recursive Backtracking Solver
+        function solveBacktracking(board) {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (board[r][c] === 0) {
+                        for (let num = 1; num <= 9; num++) {
+                            if (isValid(board, r, c, num)) {
+                                board[r][c] = num;
+                                if (solveBacktracking(board)) return true;
+                                board[r][c] = 0; // Backtrack
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Main Solve Procedure
+        function solveSudoku() {
+            const board = getBoardData();
+
+            if (board === null) {
+                showToast("Semua sel harus berupa angka 1-9 atau dikosongkan!", "error");
+                return;
+            }
+
+            if (!validateInitialBoard(board)) {
+                showToast("Posisi angka awal tidak valid / ada angka bentrok!", "error");
+                return;
+            }
+
+            // Track initial user entries
+            const initialPositions = Array.from({ length: 9 }, (_, r) =>
+                Array.from({ length: 9 }, (_, c) => board[r][c] !== 0)
+            );
+
+            // Execute Backtracking
+            if (solveBacktracking(board)) {
+                // Render Solved Board
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        const input = entries[r][c];
+                        input.value = board[r][c];
+
+                        if (initialPositions[r][c]) {
+                            // User's original values retain default contrast
+                            input.classList.remove('text-emerald-500', 'font-extrabold');
+                            input.classList.add('text-slate-900', 'dark:text-white', 'font-bold');
+                        } else {
+                            // Computer solved values are highlighted with green
+                            input.classList.remove('text-slate-900', 'dark:text-white');
+                            input.classList.add('text-emerald-500', 'font-extrabold');
+                        }
+                    }
+                }
+                showToast("Sudoku berhasil diselesaikan!", "success");
+            } else {
+                showToast("Sudoku ini gak punya solusi, coba cek angka awalan!", "warning");
+            }
+        }
+
+        // Reset Board Data & Styles
+        function resetBoard() {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const input = entries[r][c];
+                    input.value = '';
+                    input.className = input.className
+                        .replace(/text-emerald-500|font-extrabold/g, '')
+                        .trim();
+                    input.classList.add('text-slate-900', 'dark:text-white', 'font-bold');
+                }
+            }
+            entries[0][0].focus();
+            showToast("Board telah di-reset!", "info");
+        }
+
+        // Load Preset Puzzles
+        function loadSamplePreset(level) {
+            resetBoard();
+            const grid = presets[level];
+            if (!grid) return;
+
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (grid[r][c] !== 0) {
+                        entries[r][c].value = grid[r][c];
+                    }
+                }
+            }
+            showToast(`Preset (${level.toUpperCase()}) dimuat!`, "info");
+        }
+
+        // Toast Messages
+        function showToast(message, type = "info") {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMessage.textContent = message;
+
+            // Type styling
+            toast.className = "fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-2xl font-medium text-sm flex items-center gap-3 border backdrop-blur-md z-50 toast-animate";
+
+            if (type === "error") {
+                toast.classList.add('bg-rose-500/10', 'border-rose-500/30', 'text-rose-500');
+                toastIcon.className = "fa-solid fa-circle-exclamation text-rose-500";
+            } else if (type === "success") {
+                toast.classList.add('bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-500');
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-500";
+            } else if (type === "warning") {
+                toast.classList.add('bg-amber-500/10', 'border-amber-500/30', 'text-amber-500');
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-500";
+            } else {
+                toast.classList.add('bg-blue-500/10', 'border-blue-500/30', 'text-blue-500');
+                toastIcon.className = "fa-solid fa-circle-info text-blue-500";
+            }
+
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                toast.classList.remove('toast-animate');
+            }, 3500);
+        }
+
+        // Dark/Light Mode Switcher Logic
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                updateThemeIcon(true);
+            } else {
+                document.documentElement.classList.remove('dark');
+                updateThemeIcon(false);
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.theme = isDark ? 'dark' : 'light';
+            updateThemeIcon(isDark);
+        }
+
+        function updateThemeIcon(isDark) {
+            const themeIcon = document.getElementById('theme-icon');
+            if (isDark) {
+                themeIcon.className = 'fa-solid fa-sun text-amber-400 text-lg';
+            } else {
+                themeIcon.className = 'fa-solid fa-moon text-slate-700 text-lg';
+            }
+        }
+    </script>
+</body>
+</html>
